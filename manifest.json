@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Grok Search",
-  "version": "1.0",
-  "description": "Search selected text with Grok via right-click context menu.",
+  "version": "1.1",
+  "description": "Search or summarize webpage content with Grok, including timeline infographics.",
   "permissions": [
     "contextMenus",
     "activeTab",
     "scripting",
-    "storage"
+    "storage",
+    "tabs"
   ],
   "host_permissions": [
     "https://grok.com/*",
@@ -24,7 +25,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["popup.html"],
+      "resources": ["popup.html", "timeline.html", "html2canvas.min.js"],
       "matches": ["<all_urls>"]
     }
   ],

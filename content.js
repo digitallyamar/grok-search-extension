@@ -1,6 +1,10 @@
-// Check if we're on grok.com and there's a stored query
-chrome.storage.local.get(["grokQuery"], (result) => {
-  console.log("Content script running, checking for grokQuery:", result);
+// Check if we're on page load and retrieve stored data
+chrome.storageData = null;
+chrome.storage.local.get(["grokQuery", "grokTabId", "timelineEvents", "pageUrl"], (result) => {
+  console.log("Content script retrieved data:", result);
+  chrome.storageData = result;
+
+  // Handle Grok query injection
   if (result.grokQuery && window.location.href.includes("grok.com")) {
     console.log("On grok.com with query:", result.grokQuery);
     function tryInjectQuery() {
@@ -16,8 +20,9 @@ chrome.storage.local.get(["grokQuery"], (result) => {
           keyCode: 13
         });
         inputField.dispatchEvent(enterEvent);
-        chrome.storage.local.remove("grokQuery", () => {
+        chrome.storage.local.remove(["grokQuery"], () => {
           console.log("Query injected and storage cleared");
+          observeSummary(result.grokTabId);
         });
       } else {
         console.log("Input field not found, retrying...");
@@ -29,7 +34,263 @@ chrome.storage.local.get(["grokQuery"], (result) => {
       tryInjectQuery();
     } else {
       console.log("Waiting for page load");
-      window.addEventListener("load", tryInjectQuery);
+      window.addEventListener("load", () => tryInjectQuery());
     }
   }
+
+  // Handle timeline rendering
+  if (window.location.href.includes("timeline.html")) {
+    console.log("On timeline.html, fetching events...");
+    chrome.storage.local.get(["timelineEvents", "pageUrl"], (data) => {
+      console.log("Timeline storage data:", JSON.stringify(data, null, 2));
+      const events = data.timelineEvents || [];
+      const url = data.pageUrl || "Unknown Source";
+      console.log("Events to render:", events, "URL:", url);
+      renderTimeline(events, url);
+    });
+  }
 });
+
+// Function to observe DOM for Grok's summary
+function observeSummary(grokTabId) {
+  let attempts = 0;
+  const maxAttempts = 240; // 120 seconds
+  let retryCount = 0;
+  const maxRetries = 3;
+  let observer = null;
+  let lastSummary = '';
+  let stableCount = 0;
+  const stableThreshold = 8; // 4 seconds
+  let summarySent = false;
+
+  function startObservation() {
+    const targetNode = document.body;
+    const config = { childList: true, subtree: true, characterData: true };
+
+    const callback = (mutationsList, observer) => {
+      if (summarySent) {
+        console.log("Summary already sent, ignoring mutations");
+        return;
+      }
+
+      mutationsList.forEach((mutation) => {
+        if (mutation.addedNodes.length > 0 || mutation.type === 'characterData') {
+          console.log("DOM mutation detected, nodes:", mutation.addedNodes.length, "type:", mutation.type);
+        }
+      });
+
+      const summaryElements = document.querySelectorAll(
+        ".chat-response, .response, [class*='chat'], [class*='response'], [class*='message'], [class*='reply'], [role='message'], [data-role='response']"
+      );
+      console.log("Found", summaryElements.length, "potential summary elements");
+      let foundValidSummary = false;
+
+      for (const element of summaryElements) {
+        const summary = element.textContent.trim();
+        console.log("Potential summary element:", {
+          outerHTML: element.outerHTML.slice(0, 200),
+          text: summary.substring(0, 100)
+        });
+
+        if (
+          summary.length > 100 &&
+          summary.startsWith("Historical Context and Summary") &&
+          !summary.includes("Provide the historical context") &&
+          !summary.includes("=>") &&
+          !summary.includes("function(") &&
+          !summary.includes("gtag(") &&
+          !summary.includes("How can Grok help?") &&
+          !summary.includes("DeepSearch") &&
+          summary.split(/\s+/).filter(w => w.length > 0).length >= 100
+        ) {
+          if (summary === lastSummary) {
+            stableCount++;
+            console.log("Summary stable, count:", stableCount);
+          } else {
+            stableCount = 0;
+            lastSummary = summary;
+            console.log("Summary changed, resetting stable count:", summary.substring(0, 100));
+          }
+
+          if (stableCount >= stableThreshold) {
+            console.log("Summary captured:", summary);
+            chrome.storage.local.get(["pageUrl"], (data) => {
+              chrome.runtime.sendMessage({
+                type: "summaryReceived",
+                summary,
+                pageUrl: data.pageUrl
+              });
+              observer.disconnect();
+              summarySent = true;
+              foundValidSummary = true;
+            });
+            break;
+          }
+        } else {
+          console.log("Element skipped, not a valid summary:", summary.substring(0, 100));
+        }
+      }
+
+      attempts++;
+      if (attempts >= maxAttempts && !foundValidSummary) {
+        console.error("No summary found after max attempts, retrying:", retryCount + 1);
+        observer.disconnect();
+        if (retryCount < maxRetries) {
+          retryCount++;
+          attempts = 0;
+          stableCount = 0;
+          lastSummary = '';
+          setTimeout(startObservation, 3000);
+        } else {
+          console.error("Max retries reached, falling back to polling");
+          startPolling();
+        }
+      }
+    };
+
+    observer = new MutationObserver(callback);
+    observer.observe(targetNode, config);
+    console.log("Started observing DOM for summary, retry:", retryCount);
+  }
+
+  function startPolling() {
+    if (summarySent) {
+      console.log("Summary already sent, skipping polling");
+      return;
+    }
+
+    let pollAttempts = 0;
+    const maxPollAttempts = 120; // 60 seconds
+    const pollInterval = setInterval(() => {
+      const summaryElements = document.querySelectorAll(
+        ".chat-response, .response, [class*='chat'], [class*='response'], [class*='message'], [class*='reply'], [role='message'], [data-role='response']"
+      );
+      console.log("Polling found", summaryElements.length, "elements");
+
+      for (const element of summaryElements) {
+        const summary = element.textContent.trim();
+        console.log("Polling potential summary:", {
+          outerHTML: element.outerHTML.slice(0, 200),
+          text: summary.substring(0, 100)
+        });
+
+        if (
+          summary.length > 100 &&
+          summary.startsWith("Historical Context and Summary") &&
+          !summary.includes("Provide the historical context") &&
+          !summary.includes("=>") &&
+          !summary.includes("function(") &&
+          !summary.includes("gtag(") &&
+          !summary.includes("How can Grok help?") &&
+          !summary.includes("DeepSearch") &&
+          summary.split(/\s+/).filter(w => w.length > 0).length >= 100
+        ) {
+          console.log("Summary captured via polling:", summary);
+          chrome.storage.local.get(["pageUrl"], (data) => {
+            chrome.runtime.sendMessage({
+              type: "summaryReceived",
+              summary,
+              pageUrl: data.pageUrl
+            });
+            clearInterval(pollInterval);
+            summarySent = true;
+          });
+          return;
+        }
+      }
+
+      pollAttempts++;
+      if (pollAttempts >= maxPollAttempts) {
+        console.error("No summary found after polling, using fallback");
+        chrome.storage.local.get(["pageUrl"], (data) => {
+          chrome.runtime.sendMessage({
+            type: "summaryReceived",
+            summary: "Summary not found",
+            pageUrl: data.pageUrl
+          });
+          clearInterval(pollInterval);
+          summarySent = true;
+        });
+      }
+    }, 500);
+    console.log("Started polling for summary");
+  }
+
+  startObservation();
+}
+
+// Function to render timeline and capture image
+function renderTimeline(events, pageUrl) {
+  console.log("renderTimeline called with events:", JSON.stringify(events, null, 2), "pageUrl:", pageUrl);
+  const timeline = document.getElementById("timeline");
+  if (!timeline) {
+    console.error("Timeline element not found in DOM");
+    return;
+  }
+
+  // Generate event HTML or use fallback
+  let eventHtml = '';
+  if (!events || events.length === 0) {
+    console.error("No events provided, rendering fallback");
+    eventHtml = '<div class="event"><div class="date">N/A</div><div class="description">No historical events extracted.</div></div>';
+  } else {
+    events.forEach((event, index) => {
+      console.log("Processing event:", JSON.stringify(event, null, 2));
+      const date = event.date || `Event ${index + 1}`;
+      const description = event.description || "No description available";
+      eventHtml += `
+        <div class="event">
+          <div class="date">${escapeHtml(date)}</div>
+          <div class="description">${escapeHtml(description)}</div>
+        </div>
+      `;
+    });
+  }
+
+  // Update timeline content
+  timeline.innerHTML = `
+    <h1>Historical Timeline</h1>
+    ${eventHtml}
+    <div class="footer">
+      Source: <a href="${pageUrl}">${pageUrl}</a>
+    </div>
+  `;
+  console.log("Timeline HTML set:", timeline.innerHTML);
+
+  // Load html2canvas
+  const script = document.createElement("script");
+  script.src = chrome.runtime.getURL("html2canvas.min.js");
+  document.head.appendChild(script);
+
+  script.onload = () => {
+    console.log("html2canvas loaded");
+    if (typeof html2canvas === 'undefined') {
+      console.error("html2canvas not loaded properly");
+      chrome.runtime.sendMessage({ type: "closeTimelineTab" });
+      return;
+    }
+    html2canvas(timeline, { scale: 2 }).then(canvas => {
+      const image = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.href = image;
+      link.download = "timeline_infographic.png";
+      link.click();
+      console.log("Timeline image downloaded");
+      chrome.runtime.sendMessage({ type: "closeTimelineTab" });
+    }).catch(error => {
+      console.error("Error capturing timeline:", error);
+      chrome.runtime.sendMessage({ type: "closeTimelineTab" });
+    });
+  };
+  script.onerror = () => {
+    console.error("Failed to load html2canvas");
+    chrome.runtime.sendMessage({ type: "closeTimelineTab" });
+  };
+}
+
+// Utility to escape HTML to prevent rendering issues
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
