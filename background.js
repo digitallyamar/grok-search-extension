@@ -1,10 +1,15 @@
 // Remove existing context menu items to prevent duplicates
 chrome.contextMenus.removeAll(() => {
-  console.log("Context menu cleared and creating new one");
+  console.log("Context menu cleared and creating new ones");
   chrome.contextMenus.create({
     id: "search-with-grok",
     title: "Search with Grok: '%s'",
     contexts: ["selection"]
+  });
+  chrome.contextMenus.create({
+    id: "summarize-with-grok",
+    title: "Summarize Historical Context with Grok",
+    contexts: ["all"]
   });
 });
 
@@ -20,6 +25,27 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       args: [selectedText]
     }, (results) => {
       console.log("Script injection result:", results);
+    });
+  } else if (info.menuItemId === "summarize-with-grok") {
+    // Inject script to extract webpage text
+    chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: extractPageText
+    }, (results) => {
+      console.log("Text extraction result:", results);
+      if (results && results[0] && results[0].result) {
+        const pageText = results[0].result;
+        const pageUrl = info.pageUrl; // Get the webpage URL
+        const prompt = `Provide the historical context for the topic discussed in this text and summarize it in 100–200 words: ${pageText}. For more details, refer to: ${pageUrl}`;
+        console.log("Sending summary query to Grok, length:", prompt.length);
+        chrome.storage.local.set({ grokQuery: prompt }, () => {
+          chrome.tabs.create({ url: "https://grok.com" }, () => {
+            console.log("Grok tab opened for summary");
+          });
+        });
+      } else {
+        console.error("Failed to extract page text");
+      }
     });
   }
 });
@@ -40,14 +66,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // Function to show popup (injected into page)
 function showPopup(selectedText) {
   console.log("showPopup called with:", selectedText);
-  // Remove existing popup if it exists
   const existingPopup = document.getElementById("grok-search-popup");
   if (existingPopup) {
     console.log("Removing existing popup");
     existingPopup.remove();
   }
 
-  // Fetch popup HTML
   fetch(chrome.runtime.getURL("popup.html"))
     .then(response => {
       if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
@@ -59,7 +83,6 @@ function showPopup(selectedText) {
       document.body.appendChild(div);
       console.log("Popup HTML injected");
 
-      // Verify popup visibility
       const popup = document.getElementById("grok-search-popup");
       if (popup) {
         console.log("Popup element found in DOM");
@@ -67,7 +90,6 @@ function showPopup(selectedText) {
         console.error("Popup element not found in DOM");
       }
 
-      // Set selected text
       const selectedTextElement = document.getElementById("selected-text");
       if (selectedTextElement) {
         selectedTextElement.textContent = selectedText;
@@ -76,7 +98,6 @@ function showPopup(selectedText) {
         console.error("Selected text element not found");
       }
 
-      // Handle search button
       const searchBtn = document.getElementById("search-btn");
       const extraTextInput = document.getElementById("extra-text");
       if (searchBtn && extraTextInput) {
@@ -89,7 +110,6 @@ function showPopup(selectedText) {
           console.log("Popup removed after search");
         });
 
-        // Handle Enter key in input field
         extraTextInput.addEventListener("keypress", (e) => {
           if (e.key === "Enter") {
             const extraText = extraTextInput.value.trim();
@@ -104,7 +124,6 @@ function showPopup(selectedText) {
         console.error("Search button or input not found");
       }
 
-      // Handle cancel button
       const cancelBtn = document.getElementById("cancel-btn");
       if (cancelBtn) {
         cancelBtn.addEventListener("click", () => {
@@ -119,4 +138,16 @@ function showPopup(selectedText) {
     .catch(error => {
       console.error("Failed to load popup.html:", error);
     });
+}
+
+// Function to extract webpage text (injected into page)
+function extractPageText() {
+  let pageText = document.body.innerText || '';
+  // Limit text to 10,000 characters to avoid overwhelming Grok
+  if (pageText.length > 10000) {
+    pageText = pageText.substring(0, 10000) + '...';
+  }
+  // Clean up excessive whitespace
+  pageText = pageText.replace(/\s+/g, ' ').trim();
+  return pageText;
 }
