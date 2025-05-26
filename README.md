@@ -2,6 +2,8 @@
 
 A Chrome extension that allows users to search selected text on a webpage using Grok (grok.com) via a right-click context menu. Users can add optional extra text in a popup before initiating the search.
 
+[![Watch the video](https://i3.ytimg.com/vi/PCtwsD9Gjs4/maxresdefault.jpg)](https://youtu.be/PCtwsD9Gjs4)
+
 ## Features
 - Right-click context menu option to "Search with Grok" on selected text.
 - Custom popup for adding optional extra text to the search query.
