@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    #grok-search-popup {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #f5f5f5; /* Light grey background for contrast */
+      border: 2px solid #333;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+      z-index: 999999; /* High z-index to ensure visibility */
+      width: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    #grok-search-popup h3 {
+      margin: 0 0 12px;
+      font-size: 20px;
+      color: #1a1a1a; /* Darker text */
+      text-align: center;
+    }
+    #grok-search-popup p {
+      margin: 0 0 12px;
+      font-size: 14px;
+      color: #1a1a1a;
+    }
+    #grok-search-popup #selected-text {
+      font-weight: 600;
+      color: #0056b3; /* Brighter blue for selected text */
+      word-break: break-word;
+    }
+    #grok-search-popup label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 14px;
+      color: #1a1a1a;
+      font-weight: 500;
+    }
+    #grok-search-popup input {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 15px;
+      border: 1px solid #666;
+      border-radius: 5px;
+      font-size: 14px;
+      color: #1a1a1a;
+      background: #fff;
+    }
+    #grok-search-popup input:focus {
+      outline: none;
+      border-color: #007bff;
+      box-shadow: 0 0 5px rgba(0, 123, 255, 0.3);
+    }
+    #grok-search-popup .button-container {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    #grok-search-popup button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+    #grok-search-popup #search-btn {
+      background: #007bff;
+      color: #fff;
+    }
+    #grok-search-popup #search-btn:hover {
+      background: #0056b3;
+    }
+    #grok-search-popup #cancel-btn {
+      background: #e0e0e0;
+      color: #1a1a1a;
+    }
+    #grok-search-popup #cancel-btn:hover {
+      background: #c0c0c0;
+    }
+  </style>
+</head>
+<body>
+  <div id="grok-search-popup">
+    <h3>Grok Search</h3>
+    <p>Selected text: <span id="selected-text"></span></p>
+    <label for="extra-text">Add optional text:</label>
+    <input type="text" id="extra-text" placeholder="Enter extra text (optional)">
+    <div class="button-container">
+      <button id="search-btn">Search</button>
+      <button id="cancel-btn">Cancel</button>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Grok Search",
+  "version": "1.0",
+  "description": "Search selected text with Grok via right-click context menu.",
+  "permissions": [
+    "contextMenus",
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://grok.com/*",
+    "https://*.x.ai/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["popup.html"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "icons": {
+    "48": "icon.png"
+  }
+}
