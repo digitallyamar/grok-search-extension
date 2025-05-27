@@ -223,8 +223,8 @@ function showPopup(selectedText) {
 // Function to extract webpage text
 function extractPageText() {
   let pageText = document.body.innerText || '';
-  if (pageText.length > 10000) {
-    pageText = pageText.substring(0, 10000) + '...';
+  if (pageText.length > 4500) {
+    pageText = pageText.substring(0, 4500) + '...';
   }
   pageText = pageText.replace(/\s+/g, ' ').trim();
   return pageText;
@@ -232,41 +232,64 @@ function extractPageText() {
 
 // Function to extract events from summary
 function extractEvents(summary) {
-  // Split sentences, handling punctuation and newlines
   const sentences = summary.split(/[.?!;]\s+|\n+/).filter(s => s.trim().length >= 20);
   console.log("Split sentences:", sentences);
   const events = [];
-  const dateRegex = /\b(1[0-9]{3}|20[0-9]{2})\b|\b(19|20)\d{2}s?\b/;
+  // Match four-digit years (1000–9999) and century references (e.g., "19th century")
+  const dateRegex = /\b([1-9][0-9]{3})\b|\b(\d{1,2})(?:st|nd|rd|th)\s+century\b/i;
   let eventCount = 1;
 
-  for (let sentence of sentences) {
+  // Remove header if present
+  const cleanedSummary = summary.replace(/Historical Context and Summary\s*\(\d+–\d+\s*words\):/, '').trim();
+  const cleanedSentences = cleanedSummary.split(/[.?!;]\s+|\n+/).filter(s => s.trim().length >= 20);
+
+  for (let sentence of cleanedSentences) {
     sentence = sentence.trim();
-    if (sentence && events.length < 5) {
-      // Skip header sentence
-      if (sentence.startsWith("Historical Context and Summary")) {
+    if (sentence && events.length < 6 && sentence.match(/[.!?]/)) {
+      // Skip chat history-like sentences
+      if (sentence.match(/^(Today|Yesterday|\d+\s+hours\s+ago)/) || sentence.includes("Create New Chat")) {
+        console.log("Skipping chat history sentence:", sentence);
         continue;
       }
+
+      let date = `Event ${eventCount}`;
+      let year = Infinity; // For sorting non-dated events
       const match = sentence.match(dateRegex);
-      let date = match ? match[0] : null;
-      // Handle split sentences (e.g., "Named 'Chrysopylae'... by John C.")
-      if (sentence.includes("Chrysopylae") && date === null) {
-        date = "1846"; // Manual fix for 1846 event
+      console.log("Processing sentence:", { sentence, detectedDate: match ? match[0] : 'none' });
+
+      if (match) {
+        if (match[1]) {
+          // Four-digit year (e.g., 1554, 2024)
+          date = match[1];
+          year = parseInt(match[1]);
+        } else if (match[2]) {
+          // Century reference (e.g., "19th century")
+          const century = parseInt(match[2]);
+          // Approximate mid-century year (e.g., 19th century → 1850)
+          year = (century - 1) * 100 + 50;
+          date = `${match[2]}th century`;
+        }
       }
-      if (sentence.includes("Golden Gate Bridge") && date === null) {
-        date = "1937"; // Manual fix for 1937 event
-      }
-      if (date) {
-        events.push({ date, description: sentence });
-      } else {
-        events.push({ date: `Event ${eventCount}`, description: sentence });
-        eventCount++;
-      }
+
+      events.push({ date, description: sentence, year });
+      if (!match) eventCount++;
     }
   }
 
+  // Sort events by year (ascending), placing non-dated events first
+  events.sort((a, b) => {
+    if (a.year === Infinity && b.year === Infinity) return 0;
+    if (a.year === Infinity) return -1; // Non-dated events come first
+    if (b.year === Infinity) return 1;
+    return a.year - b.year;
+  });
+
+  // Clean up year property after sorting
+  events.forEach(event => delete event.year);
+
   if (events.length === 0) {
-    console.warn("No events extracted, using summary as fallback");
-    events.push({ date: "Summary", description: summary });
+    console.warn("No valid events extracted, using summary as fallback");
+    events.push({ date: "Summary", description: cleanedSummary.substring(0, 500) });
   }
 
   console.log("Final extracted events:", events);
