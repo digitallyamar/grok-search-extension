@@ -1,18 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "Grok Search",
-  "version": "1.1",
-  "description": "Search or summarize webpage content with Grok, including timeline infographics.",
+  "name": "Historical Timeline Generator",
+  "version": "1.0",
   "permissions": [
     "contextMenus",
     "activeTab",
-    "scripting",
     "storage",
-    "tabs"
-  ],
-  "host_permissions": [
-    "https://grok.com/*",
-    "https://*.x.ai/*"
+    "tabs",
+    "downloads",
+    "scripting",
+    "notifications"
   ],
   "background": {
     "service_worker": "background.js"
@@ -25,11 +22,16 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["popup.html", "timeline.html", "html2canvas.min.js"],
+      "resources": [
+        "timeline.html",
+        "timeline.js",
+        "html2canvas.min.js", 
+        "fonts/BubblegumSans-Regular.ttf"
+      ],
       "matches": ["<all_urls>"]
     }
   ],
-  "icons": {
-    "48": "icon.png"
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; font-src 'self'"
   }
 }

@@ -61,28 +61,25 @@ chrome.storage.local.get(["grokQuery", "grokTabId", "timelineEvents", "pageUrl"]
   }
 });
 
-// Function to observe DOM for Grok's summary
+// Function to observe DOM for Grok's summary with debouncing
 function observeSummary(grokTabId) {
   let attempts = 0;
   const maxAttempts = 240; // 120 seconds
   let retryCount = 0;
   const maxRetries = 3;
-  let observer = null;
   let lastSummary = '';
   let stableCount = 0;
   const stableThreshold = 6; // 3 seconds (6 * 500ms)
   let summarySent = false;
+  let debounceTimeout = null;
 
-  function startObservation() {
-    const targetNode = document.body;
-    const config = { childList: true, subtree: true, characterData: true, attributes: true };
+  const observer = new MutationObserver((mutationsList) => {
+    if (debounceTimeout || summarySent) {
+      console.log("Debouncing or summary already sent, ignoring mutations");
+      return;
+    }
 
-    const callback = (mutationsList, observer) => {
-      if (summarySent) {
-        console.log("Summary already sent, ignoring mutations");
-        return;
-      }
-
+    debounceTimeout = setTimeout(() => {
       mutationsList.forEach((mutation) => {
         console.log("DOM mutation detected, type:", mutation.type, "nodes:", mutation.addedNodes.length, "target:", mutation.target.tagName);
         if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
@@ -90,20 +87,18 @@ function observeSummary(grokTabId) {
         }
       });
 
-      // Target response-content-markdown or message-bubble
       const responseContainers = document.querySelectorAll(
         ".response-content-markdown, .message-bubble"
       );
       console.log("Found", responseContainers.length, "potential response containers");
 
       for (const container of responseContainers) {
-        // Collect all <p> elements within the container
         const paragraphs = container.querySelectorAll("p.break-words");
         let summary = Array.from(paragraphs)
           .map(p => p.textContent.trim())
           .filter(text => text.length > 0)
           .join(" ");
-        
+
         console.log("Potential summary from container:", {
           outerHTML: container.outerHTML.slice(0, 200),
           text: summary.substring(0, 100),
@@ -159,18 +154,21 @@ function observeSummary(grokTabId) {
           attempts = 0;
           stableCount = 0;
           lastSummary = '';
-          setTimeout(startObservation, 3000);
+          setTimeout(() => {
+            observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true });
+            console.log("Restarted observation, retry:", retryCount);
+          }, 3000);
         } else {
           console.error("Max retries reached, falling back to polling");
           startPolling();
         }
       }
-    };
+      debounceTimeout = null;
+    }, 500); // Debounce for 500ms
+  });
 
-    observer = new MutationObserver(callback);
-    observer.observe(targetNode, config);
-    console.log("Started observing DOM for summary, retry:", retryCount);
-  }
+  observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true });
+  console.log("Started observing DOM for summary, retry:", retryCount);
 
   function startPolling() {
     if (summarySent) {
@@ -192,7 +190,7 @@ function observeSummary(grokTabId) {
           .map(p => p.textContent.trim())
           .filter(text => text.length > 0)
           .join(" ");
-        
+
         console.log("Polling potential summary:", {
           outerHTML: container.outerHTML.slice(0, 200),
           text: summary.substring(0, 100)
@@ -245,8 +243,6 @@ function observeSummary(grokTabId) {
     }, 500);
     console.log("Started polling for summary");
   }
-
-  startObservation();
 }
 
 // Function to render timeline and capture image
@@ -286,6 +282,10 @@ function renderTimeline(events, pageUrl) {
   `;
   console.log("Timeline HTML set:", timeline.innerHTML);
 
+  // Force DOM update
+  timeline.offsetHeight; // Trigger reflow
+  console.log("Timeline DOM height:", timeline.offsetHeight);
+
   const script = document.createElement("script");
   script.src = chrome.runtime.getURL("html2canvas.min.js");
   document.head.appendChild(script);
@@ -303,24 +303,39 @@ function renderTimeline(events, pageUrl) {
       });
       return;
     }
-    html2canvas(timeline, { scale: 2 }).then(canvas => {
-      const image = canvas.toDataURL("image/png");
-      const link = document.createElement("a");
-      link.href = image;
-      link.download = "timeline_infographic.png";
-      link.click();
-      console.log("Timeline image downloaded");
-      chrome.runtime.sendMessage({ type: "closeTimelineTab" });
-    }).catch(error => {
-      console.error("Error capturing timeline:", error);
-      chrome.runtime.sendMessage({ type: "closeTimelineTab" });
-      chrome.notifications.create({
-        type: "basic",
-        iconUrl: "icon.png",
-        title: "Grok Search Error",
-        message: "Failed to generate timeline image."
+    // Delay to ensure DOM rendering
+    setTimeout(() => {
+      html2canvas(timeline, { scale: 2, backgroundColor: '#fff' }).then(canvas => {
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            console.error("Failed to create blob");
+            chrome.runtime.sendMessage({ type: "closeTimelineTab" });
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          chrome.downloads.download({
+            url: url,
+            filename: "timeline_infographic.png",
+            saveAs: false
+          }, (downloadId) => {
+            if (chrome.runtime.lastError) {
+              console.error("Download failed:", chrome.runtime.lastError);
+            }
+            URL.revokeObjectURL(url);
+            chrome.runtime.sendMessage({ type: "closeTimelineTab" });
+          });
+        });
+      }).catch(error => {
+        console.error("Error capturing timeline:", error);
+        chrome.runtime.sendMessage({ type: "closeTimelineTab" });
+        chrome.notifications.create({
+          type: "basic",
+          iconUrl: "icon.png",
+          title: "Grok Search Error",
+          message: "Failed to generate timeline image."
+        });
       });
-    });
+    }, 100);
   };
   script.onerror = () => {
     console.error("Failed to load html2canvas");

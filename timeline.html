@@ -1,61 +1,145 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Historical Timeline</title>
+  <title>Timeline Infographic</title>
   <style>
+    @font-face {
+      font-family: 'Bubblegum Sans';
+      src: url('fonts/BubblegumSans-Regular.ttf') format('truetype');
+      font-weight: normal;
+      font-style: normal;
+    }
     body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-      background-color: #f9f9f9;
+      font-family: 'Bubblegum Sans', 'Segoe UI', Arial, sans-serif; /* Fallback fonts */
+      margin: 0;
+      background: linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
     }
     #timeline {
-      max-width: 800px;
-      margin: 0 auto;
+      max-width: 1200px;
+      width: 100%;
+      margin: 40px auto;
       padding: 20px;
-      background-color: #fff;
-      border: 1px solid #ddd;
+      background: #fff;
+      border-radius: 15px;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+    .timeline-header {
+      text-align: center;
+      padding: 20px;
+      background: #007bff;
+      color: #fff;
+      border-radius: 10px 10px 0 0;
+      margin-bottom: 20px;
+    }
+    .timeline-header h1 {
+      margin: 0;
+      font-size: 2.8em; /* Slightly larger for header */
+      font-weight: 700;
+    }
+    .timeline-container {
+      position: relative;
+      padding: 20px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .timeline-container::before {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: #007bff;
+      transform: translateX(-50%);
+    }
+    .timeline-event {
+      position: relative;
+      width: 45%;
+      margin: 20px 0;
+      padding: 15px;
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
       border-radius: 8px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+      transition: transform 0.3s ease;
     }
-    h1 {
-      text-align: center;
+    .timeline-event:nth-child(odd) {
+      margin-right: 55%;
+      text-align: right;
+    }
+    .timeline-event:nth-child(even) {
+      margin-left: 55%;
+      text-align: left;
+    }
+    .timeline-circle {
+      position: absolute;
+      top: 20px;
+      width: 20px;
+      height: 20px;
+      background: #007bff;
+      border-radius: 50%;
+      border: 3px solid #fff;
+      box-shadow: 0 0 0 3px #007bff;
+    }
+    .timeline-event:nth-child(odd) .timeline-circle {
+      right: -30px;
+    }
+    .timeline-event:nth-child(even) .timeline-circle {
+      left: -30px;
+    }
+    .timeline-event strong {
+      display: block;
+      color: #007bff;
+      font-size: 1.5em; /* Increased from 1.2em */
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .timeline-event p {
+      margin: 0;
       color: #333;
+      font-size: 1.2em; /* Increased from 1em */
+      line-height: 1.5;
     }
-    .event {
-      margin: 15px 0;
+    .timeline-footer {
+      text-align: center;
       padding: 10px;
-      border-left: 4px solid #007bff;
-      background-color: #f0f8ff;
-    }
-    .date {
-      font-weight: bold;
-      color: #007bff;
-      margin-bottom: 5px;
-    }
-    .description {
-      color: #333;
-    }
-    .footer {
-      margin-top: 20px;
-      text-align: center;
-      font-size: 0.9em;
       color: #666;
+      font-size: 1em; /* Slightly larger for footer */
     }
-    .footer a {
-      color: #007bff;
-      text-decoration: none;
-    }
-    .footer a:hover {
-      text-decoration: underline;
+    @media (max-width: 768px) {
+      .timeline-container::before {
+        left: 20px;
+      }
+      .timeline-event {
+        width: 80%;
+        margin-left: 40px !important;
+        margin-right: 0 !important;
+        text-align: left !important;
+      }
+      .timeline-event .timeline-circle {
+        left: -25px !important;
+        right: auto !important;
+      }
     }
   </style>
+  <script src="html2canvas.min.js"></script>
+  <script src="timeline.js"></script>
 </head>
 <body>
   <div id="timeline">
-    <h1>Historical Timeline</h1>
-    <!-- Events will be injected here -->
+    <div class="timeline-header">
+      <h1>Our Journey: A Timeline</h1>
+    </div>
+    <div class="timeline-container"></div>
+    <div class="timeline-footer">
+      Created with ❤️ | Share on X: #OurTimeline
+    </div>
   </div>
-  <script src="content.js"></script>
 </body>
 </html>
