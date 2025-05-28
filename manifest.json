@@ -26,12 +26,13 @@
         "timeline.html",
         "timeline.js",
         "html2canvas.min.js", 
-        "fonts/BubblegumSans-Regular.ttf"
+        "fonts/BubblegumSans-Regular.ttf",
+        "textures/parchment.jpg"
       ],
       "matches": ["<all_urls>"]
     }
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; font-src 'self'"
+    "extension_pages": "script-src 'self'; object-src 'self'; font-src 'self'; img-src 'self'"
   }
 }
